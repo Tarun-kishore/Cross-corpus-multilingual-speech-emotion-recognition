@@ -55,13 +55,13 @@ def extractFeatures(fileName):
 
 
     # # extracting pitch features
-    pitches, magnitudes = librosa.piptrack(y=y, sr=sr, S=S, fmin=70, fmax=400, n_fft = 4096)
-    pitch = []
-    for i in range(magnitudes.shape[1]):
-        index = magnitudes[:, 1].argmax()
-        pitch.append(pitches[index, i])
-    pitch=np.mean(pitch,axis=0)
-    result=np.hstack((result, pitch))
+    # pitches, magnitudes = librosa.piptrack(y=y, sr=sr, S=S, fmin=70, fmax=400, n_fft = 4096)
+    # pitch = []
+    # for i in range(magnitudes.shape[1]):
+        # index = magnitudes[:, 1].argmax()
+        # pitch.append(pitches[index, i])
+    # pitch=np.mean(pitch,axis=0)
+    # result=np.hstack((result, pitch))
 
 
     # sound = parselmouth.Sound(fileName)
@@ -91,9 +91,9 @@ def extractFeatures(fileName):
     # result=np.hstack((result, np.array([localShimmer])))
 
 
-    #extracting energy and entropy
-    F, f_names = ShortTermFeatures.feature_extraction(signal=y, sampling_rate=sr,window=0.050*sr,step= 0.025*sr)
-    result=np.hstack((result, np.mean(F.T,axis=0)))
+    # extracting energy and entropy
+    # F, f_names = ShortTermFeatures.feature_extraction(signal=y, sampling_rate=sr,window=0.050*sr,step= 0.025*sr)
+    # result=np.hstack((result, np.mean(F.T,axis=0)))
 
 
     # # extracting lpcc features
@@ -255,7 +255,7 @@ def decisionTree(x_train,x_test,y_train,y_test):
 
 def classify(x_train,x_test_pre,y_train,y_test_pre):
 
-    selector= SelectKBest(chi2, k=70)
+    selector= SelectKBest(chi2, k=130)
     x_train= selector.fit_transform(x_train,y_train)
     x_test_pre=selector.transform(x_test_pre)
     length = len(x_test_pre)   
