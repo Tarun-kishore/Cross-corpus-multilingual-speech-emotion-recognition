@@ -15,8 +15,9 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_selection import SelectKBest,chi2
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import MinMaxScaler
 
 
 
@@ -48,9 +49,9 @@ def extractFeatures(fileName):
     result=np.hstack((result, zeroCrossingRate))
 
     # extracting tonnetz features
-    hry = librosa.effects.harmonic(y=y)
-    tonnetz = np.mean(librosa.feature.tonnetz(y=hry, sr=sr,chroma=librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0).T,axis=0)
-    result=np.hstack((result, tonnetz))
+    # hry = librosa.effects.harmonic(y=y)
+    # tonnetz = np.mean(librosa.feature.tonnetz(y=hry, sr=sr,chroma=librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0).T,axis=0)
+    # result=np.hstack((result, tonnetz))
 
 
     # # extracting pitch features
@@ -63,31 +64,31 @@ def extractFeatures(fileName):
     result=np.hstack((result, pitch))
 
 
-    sound = parselmouth.Sound(fileName)
+    # sound = parselmouth.Sound(fileName)
 
-    # extracting duration features
-    duration = call(sound, 'Get end time')
-    result=np.hstack((result, np.array([duration])))
+    # # extracting duration features
+    # duration = call(sound, 'Get end time')
+    # result=np.hstack((result, np.array([duration])))
 
-    # extracting harmonic features
-    harmonicity = sound.to_harmonicity()
-    harmonicity_values = [call(harmonicity, 'Get value in frame', frame_no)
-                              for frame_no in range(len(harmonicity))]
+    # # extracting harmonic features
+    # harmonicity = sound.to_harmonicity()
+    # harmonicity_values = [call(harmonicity, 'Get value in frame', frame_no)
+                              # for frame_no in range(len(harmonicity))]
 
-    result=np.hstack((result, np.mean(np.array(harmonicity_values),axis=0)))
+    # result=np.hstack((result, np.mean(np.array(harmonicity_values),axis=0)))
 
-    # extracting jitter features
-    pitch = sound.to_pitch()
-    pulses = parselmouth.praat.call([sound, pitch], "To PointProcess (cc)")
-    jitter_local = parselmouth.praat.call(pulses, "Get jitter (local)", 0.0, 0.0, 0.0001, 0.02, 1.3) * 100
-    result=np.hstack((result, np.array([jitter_local])))
+    # # extracting jitter features
+    # pitch = sound.to_pitch()
+    # pulses = parselmouth.praat.call([sound, pitch], "To PointProcess (cc)")
+    # jitter_local = parselmouth.praat.call(pulses, "Get jitter (local)", 0.0, 0.0, 0.0001, 0.02, 1.3) * 100
+    # result=np.hstack((result, np.array([jitter_local])))
 
 
-    # extracting shimmer features
-    pitch = sound.to_pitch()
-    pulses = call([sound, pitch], "To PointProcess (cc)")
-    localShimmer =  call([sound, pulses], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)
-    result=np.hstack((result, np.array([localShimmer])))
+    # # extracting shimmer features
+    # pitch = sound.to_pitch()
+    # pulses = call([sound, pitch], "To PointProcess (cc)")
+    # localShimmer =  call([sound, pulses], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)
+    # result=np.hstack((result, np.array([localShimmer])))
 
 
     #extracting energy and entropy
@@ -95,19 +96,19 @@ def extractFeatures(fileName):
     result=np.hstack((result, np.mean(F.T,axis=0)))
 
 
-    # extracting lpcc features
-    lpccs=tsfel.feature_extraction.features.lpcc(signal=y);
-    result=np.hstack((result, lpccs))
+    # # extracting lpcc features
+    # lpccs=tsfel.feature_extraction.features.lpcc(signal=y);
+    # result=np.hstack((result, lpccs))
 
-    # extracting plp features
-    wave, samp_freq = torchaudio.load(fileName)
-    wave = wave.squeeze()
-    wave = wave.flatten()
-    opts = kaldifeat.PlpOptions()
-    opts.mel_opts.num_bins = 23
-    plp = kaldifeat.Plp(opts)
-    plps = plp(wave)
-    result=np.hstack((result, np.mean(np.array(plps),axis=0)))
+    # # extracting plp features
+    # wave, samp_freq = torchaudio.load(fileName)
+    # wave = wave.squeeze()
+    # wave = wave.flatten()
+    # opts = kaldifeat.PlpOptions()
+    # opts.mel_opts.num_bins = 23
+    # plp = kaldifeat.Plp(opts)
+    # plps = plp(wave)
+    # result=np.hstack((result, np.mean(np.array(plps),axis=0)))
 
 
     print(fileName)
@@ -116,7 +117,7 @@ def extractFeatures(fileName):
 
 def loadData(folderName, emotionsConditions):
     x,y = [] , []
-    num=50
+    num=150
     for folder in glob.glob(folderName):
         for file in glob.glob(folder+'/*.wav'):
             # num=num-1
@@ -132,6 +133,11 @@ def loadData(folderName, emotionsConditions):
     preprocessor = SimpleImputer(missing_values=np.nan, strategy='mean')
     preprocessor.fit(x)
     x = preprocessor.transform(x)
+    sm = SMOTE(k_neighbors=3,random_state=42)
+    x, y = sm.fit_resample(x, y)
+    scaler = MinMaxScaler()
+    scaler.fit(x)
+    x = scaler.transform(x)
     return x,y
 
 
@@ -246,9 +252,10 @@ def decisionTree(x_train,x_test,y_train,y_test):
     y_pred_entropy = prediction(x_test, clf_entropy)
     cal_accuracy(y_test, y_pred_entropy)
 
+
 def classify(x_train,x_test_pre,y_train,y_test_pre):
 
-    selector=SelectKBest(mutual_info_classif, k=100)
+    selector= SelectKBest(chi2, k=70)
     x_train= selector.fit_transform(x_train,y_train)
     x_test_pre=selector.transform(x_test_pre)
     length = len(x_test_pre)   
