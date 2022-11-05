@@ -5,7 +5,7 @@ import parselmouth
 import tsfel
 import torchaudio
 import torch
-import kaldifeat
+# import kaldifeat
 from parselmouth.praat import call
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
@@ -15,7 +15,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
-from sklearn.feature_selection import SelectKBest,chi2
+from sklearn.feature_selection import SelectKBest,mutual_info_classif
 from imblearn.over_sampling import SMOTE
 from sklearn.preprocessing import MinMaxScaler
 
@@ -32,12 +32,28 @@ def extractFeatures(fileName):
     result=np.hstack((result, chroma))
 
     # extracting mfcc features
-    mfccs=np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40).T, axis=0)
+    mfccs=np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40).T, axis=0)[:20]
     result=np.hstack((result, mfccs))
 
+    # extracting rolloff features
+    rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.99).T,axis=0)
+    result=np.hstack((result, rolloff))
+
+    # extracting centroid features
+    centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr).T,axis=0)
+    result=np.hstack((result, centroid))
+
+    # extracting bandwidth features
+    bandwidth = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr).T,axis=0)
+    result=np.hstack((result, bandwidth))
+
+    # extracting rms features
+    rms = np.mean(librosa.feature.rms(y=y).T,axis=0)
+    result=np.hstack((result, rms))
+
     # extracting mel features
-    mel=np.mean(librosa.feature.melspectrogram(y=y, sr=sr).T,axis=0)
-    result=np.hstack((result, mel))
+    # mel=np.mean(librosa.feature.melspectrogram(y=y, sr=sr).T,axis=0)
+    # result=np.hstack((result, mel))
 
     # extracting contrast features
     S = np.abs(librosa.stft(y))
@@ -135,6 +151,7 @@ def loadData(folderName, emotionsConditions):
     x = preprocessor.transform(x)
     sm = SMOTE(k_neighbors=3,random_state=42)
     x, y = sm.fit_resample(x, y)
+    x=x-np.mean(x)
     scaler = MinMaxScaler()
     scaler.fit(x)
     x = scaler.transform(x)
@@ -229,33 +246,21 @@ def cal_accuracy(y_test, y_pred):
 
 def decisionTree(x_train,x_test,y_train,y_test):
     
-    def train_using_entropy(X_train, X_test, y_train):
-      
-        clf_entropy = DecisionTreeClassifier(
+    clf = DecisionTreeClassifier(
                 criterion = "entropy", random_state = 100,
-                max_depth = 3, min_samples_leaf = 5)
+                max_depth = 15, min_samples_leaf = 5)
       
-        clf_entropy.fit(X_train, y_train)
-        return clf_entropy
-    
-    
-    def prediction(X_test, clf_object):
+    clf.fit(x_train, y_train)
       
-        y_pred = clf_object.predict(X_test)
-        return y_pred
+    y_pred = clf.predict(x_test)
     
-    
-    
-    clf_entropy = train_using_entropy(x_train, x_test, y_train)
-    
-    print("Results Using Entropy:")
-    y_pred_entropy = prediction(x_test, clf_entropy)
-    cal_accuracy(y_test, y_pred_entropy)
+    print("Results Using J48:")
+    cal_accuracy(y_test, y_pred)
 
 
 def classify(x_train,x_test_pre,y_train,y_test_pre):
 
-    selector= SelectKBest(chi2, k=130)
+    selector= SelectKBest(mutual_info_classif, k=28)
     x_train= selector.fit_transform(x_train,y_train)
     x_test_pre=selector.transform(x_test_pre)
     length = len(x_test_pre)   
@@ -271,4 +276,9 @@ def classify(x_train,x_test_pre,y_train,y_test_pre):
 
 
 # X_train, X_test, y_train, y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
+print("train - Urdu      test-Savee")
 classify(urduX,saveeX,urduY,saveeY)
+print("train - Urdu      test-emodb")
+# classify(urduX,emodbX,urduY,emodbY)
+print("train - Urdu      test-emovo")
+# classify(urduX,emovoX,urduY,emovoY)
