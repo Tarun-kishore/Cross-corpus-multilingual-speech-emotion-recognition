@@ -5,7 +5,6 @@ import parselmouth
 import tsfel
 import torchaudio
 import torch
-# import kaldifeat
 from parselmouth.praat import call
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
@@ -13,12 +12,15 @@ from pyAudioAnalysis import audioBasicIO
 from pyAudioAnalysis import ShortTermFeatures
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.pipeline import make_pipeline
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn.feature_selection import SelectKBest,mutual_info_classif
 from imblearn.over_sampling import SMOTE
-from sklearn.preprocessing import MinMaxScaler
-
+from sklearn.preprocessing import MinMaxScaler,StandardScaler
+from sklearn.ensemble import RandomForestClassifier,VotingClassifier
+from sklearn.svm import SVC
+import opensmile
 
 
 def extractFeatures(fileName):
@@ -51,9 +53,13 @@ def extractFeatures(fileName):
     rms = np.mean(librosa.feature.rms(y=y).T,axis=0)
     result=np.hstack((result, rms))
 
-    # extracting mel features
-    # mel=np.mean(librosa.feature.melspectrogram(y=y, sr=sr).T,axis=0)
-    # result=np.hstack((result, mel))
+    # extracting fundamental frequency
+    # f0=librosa.pyin(y=y, fmin=librosa.note_to_hz('c2'), fmax=librosa.note_to_hz('c7'))
+    # f0=np.array(f0)
+
+    # f0 = np.mean(f0.T,axis=0)
+    # result=np.hstack((result, f0))
+
 
     # extracting contrast features
     S = np.abs(librosa.stft(y))
@@ -64,68 +70,14 @@ def extractFeatures(fileName):
     zeroCrossingRate=np.mean(librosa.feature.zero_crossing_rate(y=y).T,axis=0)
     result=np.hstack((result, zeroCrossingRate))
 
-    # extracting tonnetz features
-    # hry = librosa.effects.harmonic(y=y)
-    # tonnetz = np.mean(librosa.feature.tonnetz(y=hry, sr=sr,chroma=librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0).T,axis=0)
-    # result=np.hstack((result, tonnetz))
-
-
-    # # extracting pitch features
-    # pitches, magnitudes = librosa.piptrack(y=y, sr=sr, S=S, fmin=70, fmax=400, n_fft = 4096)
-    # pitch = []
-    # for i in range(magnitudes.shape[1]):
-        # index = magnitudes[:, 1].argmax()
-        # pitch.append(pitches[index, i])
-    # pitch=np.mean(pitch,axis=0)
-    # result=np.hstack((result, pitch))
-
-
-    # sound = parselmouth.Sound(fileName)
-
-    # # extracting duration features
-    # duration = call(sound, 'Get end time')
-    # result=np.hstack((result, np.array([duration])))
-
-    # # extracting harmonic features
-    # harmonicity = sound.to_harmonicity()
-    # harmonicity_values = [call(harmonicity, 'Get value in frame', frame_no)
-                              # for frame_no in range(len(harmonicity))]
-
-    # result=np.hstack((result, np.mean(np.array(harmonicity_values),axis=0)))
-
-    # # extracting jitter features
-    # pitch = sound.to_pitch()
-    # pulses = parselmouth.praat.call([sound, pitch], "To PointProcess (cc)")
-    # jitter_local = parselmouth.praat.call(pulses, "Get jitter (local)", 0.0, 0.0, 0.0001, 0.02, 1.3) * 100
-    # result=np.hstack((result, np.array([jitter_local])))
-
-
-    # # extracting shimmer features
-    # pitch = sound.to_pitch()
-    # pulses = call([sound, pitch], "To PointProcess (cc)")
-    # localShimmer =  call([sound, pulses], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)
-    # result=np.hstack((result, np.array([localShimmer])))
-
-
-    # extracting energy and entropy
-    # F, f_names = ShortTermFeatures.feature_extraction(signal=y, sampling_rate=sr,window=0.050*sr,step= 0.025*sr)
-    # result=np.hstack((result, np.mean(F.T,axis=0)))
-
-
-    # # extracting lpcc features
-    # lpccs=tsfel.feature_extraction.features.lpcc(signal=y);
-    # result=np.hstack((result, lpccs))
-
-    # # extracting plp features
-    # wave, samp_freq = torchaudio.load(fileName)
-    # wave = wave.squeeze()
-    # wave = wave.flatten()
-    # opts = kaldifeat.PlpOptions()
-    # opts.mel_opts.num_bins = 23
-    # plp = kaldifeat.Plp(opts)
-    # plps = plp(wave)
-    # result=np.hstack((result, np.mean(np.array(plps),axis=0)))
-
+    # extra eGeMAPS features
+    smile = opensmile.Smile(
+        feature_set=opensmile.FeatureSet.eGeMAPSv02,
+        feature_level=opensmile.FeatureLevel.Functionals,
+    )
+    eGeMAPS=smile.process_signal(y,sr)
+    eGeMAPS = np.mean(eGeMAPS,axis=0)
+    result=np.hstack((result, eGeMAPS))
 
     print(fileName)
     return result
@@ -246,10 +198,14 @@ def cal_accuracy(y_test, y_pred):
 
 def decisionTree(x_train,x_test,y_train,y_test):
     
+    # selector= SelectKBest(mutual_info_classif, k=28)
+    # x_train= selector.fit_transform(x_train,y_train)
+    # x_test=selector.transform(x_test)
     clf = DecisionTreeClassifier(
                 criterion = "entropy", random_state = 100,
                 max_depth = 15, min_samples_leaf = 5)
       
+    clf_return = clf
     clf.fit(x_train, y_train)
       
     y_pred = clf.predict(x_test)
@@ -257,22 +213,72 @@ def decisionTree(x_train,x_test,y_train,y_test):
     print("Results Using J48:")
     cal_accuracy(y_test, y_pred)
 
+    return clf_return 
 
-def classify(x_train,x_test_pre,y_train,y_test_pre):
+def random_forest(x_train, x_test, y_train, y_test):
+    # selector= SelectKBest(mutual_info_classif, k=38)
+    # x_train= selector.fit_transform(x_train,y_train)
+    # x_test=selector.transform(x_test)
 
-    selector= SelectKBest(mutual_info_classif, k=28)
-    x_train= selector.fit_transform(x_train,y_train)
-    x_test_pre=selector.transform(x_test_pre)
+    model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=100)
+    clf_return = model
+    model.fit(x_train, y_train)
+    y_pred = model.predict(x_test)
+
+    print("Results Using random forest:")
+    cal_accuracy(y_test, y_pred)
+
+    return model
+
+def ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,smo_clf):
+    clf = VotingClassifier(
+        estimators=[('dt', dt_clf), ('smo', smo_clf), ('rf', rf_clf)],
+        voting='hard'
+    )
+      
+    clf_return = clf
+    clf.fit(x_train, y_train)
+      
+    y_pred = clf.predict(x_test)
+    
+    print("Results Using ensemble:")
+    cal_accuracy(y_test, y_pred)
+
+    return clf_return 
+
+
+def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
+
     length = len(x_test_pre)   
 
     y_test=[]
     x_test=[]
     for i in range(length):
-        if y_test_pre[i] in y_train:
+        if y_test_pre[i] in y_train_pre:
             y_test.append(y_test_pre[i])
             x_test.append(x_test_pre[i])
 
-    decisionTree(x_train,x_test,y_train,y_test)
+    length = len(x_train_pre)   
+
+    y_train=[]
+    x_train=[]
+    for i in range(length):
+        if y_train_pre[i] in y_test:
+            y_train.append(y_train_pre[i])
+            x_train.append(x_train_pre[i])
+
+    
+    sm = SMOTE(k_neighbors=3,random_state=42)
+
+    # x_train, y_train = sm.fit_resample(x_train, y_train)
+    # x_train=x_train-np.mean(x_train)
+    # scaler = MinMaxScaler()
+    # scaler.fit(x_train)
+    # x_train = scaler.transform(x_train)
+
+    dt_clf=decisionTree(x_train,x_test,y_train,y_test)
+    rf_clf=random_forest(x_train,x_test,y_train,y_test)
+    ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,make_pipeline(StandardScaler(), SVC(gamma='auto')))
 
 
 # X_train, X_test, y_train, y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
@@ -282,3 +288,25 @@ print("train - Urdu      test-emodb")
 # classify(urduX,emodbX,urduY,emodbY)
 print("train - Urdu      test-emovo")
 # classify(urduX,emovoX,urduY,emovoY)
+
+
+print("train - savee      test-urdu")
+classify(saveeX,urduX,saveeY,urduY)
+print("train - savee      test-emodb")
+# classify(saveeX,emodbX,saveeY,emodbY)
+print("train - savee      test-emovo")
+# classify(saveeX,emovoX,saveeY,emovoY)
+
+print("train - emodb      test-urdu")
+# classify(emodbX,urduX,emodbY,urduY)
+print("train - emodb      test-savee")
+# classify(emodbX,saveeX,emodbY,saveeY)
+print("train - emodb      test-emovo")
+# classify(emodbX,emovoX,emodbY,emovoY)
+
+print("train - emovo      test-urdu")
+# classify(emovoX,urduX,emovoY,urduY)
+print("train - emovo      test-savee")
+# classify(emovoX,saveeX,emovoY,saveeY)
+print("train - emovo      test-emodb")
+# classify(emovoX,emodbX,emovoY,emodbY)
