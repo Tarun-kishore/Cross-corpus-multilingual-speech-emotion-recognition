@@ -1,4 +1,3 @@
-from __future__ import division, print_function
 import os,glob
 import numpy as np 
 import librosa
@@ -309,9 +308,9 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
             y_train.append(y_train_pre[i])
             x_train.append(x_train_pre[i])
 
-    selector= SelectKBest(mutual_info_classif, k=35)
-    x_train= selector.fit_transform(x_train,y_train)
-    x_test=selector.transform(x_test)
+    # selector= SelectKBest(mutual_info_classif, k=35)
+    # x_train= selector.fit_transform(x_train,y_train)
+    # x_test=selector.transform(x_test)
     
 
     dt_clf=decisionTree(x_train,x_test,y_train,y_test)
@@ -321,9 +320,9 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
 
 
 urdu_x_train, urdu_x_test, urdu_y_train, urdu_y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
-savee_x_train, savee_x_test, savee_y_train, savee_y_test = train_test_split(saveeX, saveeY, test_size=0.33, random_state=42)
-emodb_x_train, emodb_x_test, emodb_y_train, emodb_y_test = train_test_split(emodbX, emodbY, test_size=0.33, random_state=42)
-emovo_x_train, emovo_x_test, emovo_y_train, emovo_y_test = train_test_split(emovoX, emovoY, test_size=0.33, random_state=42)
+savee_x_train, savee_x_test, savee_y_train, savee_y_test = train_test_split(saveeX, saveeY, test_size=0.25, random_state=42)
+emodb_x_train, emodb_x_test, emodb_y_train, emodb_y_test = train_test_split(emodbX, emodbY, test_size=0.25, random_state=42)
+emovo_x_train, emovo_x_test, emovo_y_train, emovo_y_test = train_test_split(emovoX, emovoY, test_size=0.25, random_state=42)
 
 print("In Corpus Testing")
 
