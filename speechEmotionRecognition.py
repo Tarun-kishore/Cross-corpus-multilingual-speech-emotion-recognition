@@ -21,6 +21,7 @@ from sklearn.preprocessing import MinMaxScaler,StandardScaler
 from sklearn.ensemble import RandomForestClassifier,VotingClassifier
 from sklearn.svm import SVC
 import opensmile
+import pandas as pd
 
 
 def extractFeatures(fileName):
@@ -30,54 +31,55 @@ def extractFeatures(fileName):
 
     # extracting chroma features
     stft=np.abs(librosa.stft(y))
-    chroma=np.mean(librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0)
+    chroma=np.median(librosa.feature.chroma_stft(S=stft, sr=sr).T,axis=0)
     result=np.hstack((result, chroma))
 
     # extracting mfcc features
-    mfccs=np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40).T, axis=0)[:20]
+    mfccs=np.median(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40).T, axis=0)[:20]
     result=np.hstack((result, mfccs))
 
     # extracting rolloff features
-    rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.99).T,axis=0)
+    rolloff = np.median(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.99).T,axis=0)
     result=np.hstack((result, rolloff))
 
     # extracting centroid features
-    centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr).T,axis=0)
+    centroid = np.median(librosa.feature.spectral_centroid(y=y, sr=sr).T,axis=0)
     result=np.hstack((result, centroid))
 
     # extracting bandwidth features
-    bandwidth = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr).T,axis=0)
+    bandwidth = np.median(librosa.feature.spectral_bandwidth(y=y, sr=sr).T,axis=0)
     result=np.hstack((result, bandwidth))
 
     # extracting rms features
-    rms = np.mean(librosa.feature.rms(y=y).T,axis=0)
+    rms = np.median(librosa.feature.rms(y=y).T,axis=0)
     result=np.hstack((result, rms))
 
     # extracting fundamental frequency
     # f0=librosa.pyin(y=y, fmin=librosa.note_to_hz('c2'), fmax=librosa.note_to_hz('c7'))
     # f0=np.array(f0)
 
-    # f0 = np.mean(f0.T,axis=0)
+    # f0 = np.median(f0.T,axis=0)
     # result=np.hstack((result, f0))
 
 
     # extracting contrast features
     S = np.abs(librosa.stft(y))
-    contrast = np.mean(librosa.feature.spectral_contrast(S=S, sr=sr).T,axis=0)
+    contrast = np.median(librosa.feature.spectral_contrast(S=S, sr=sr).T,axis=0)
     result=np.hstack((result, contrast))
 
     # extracting zero crossing rate features
-    zeroCrossingRate=np.mean(librosa.feature.zero_crossing_rate(y=y).T,axis=0)
+    zeroCrossingRate=np.median(librosa.feature.zero_crossing_rate(y=y).T,axis=0)
     result=np.hstack((result, zeroCrossingRate))
 
     # extra eGeMAPS features
-    smile = opensmile.Smile(
-        feature_set=opensmile.FeatureSet.eGeMAPSv02,
-        feature_level=opensmile.FeatureLevel.Functionals,
-    )
-    eGeMAPS=smile.process_signal(y,sr)
-    eGeMAPS = np.mean(eGeMAPS,axis=0)
-    result=np.hstack((result, eGeMAPS))
+    # smile = opensmile.Smile(
+        # feature_set=opensmile.FeatureSet.eGeMAPSv02,
+        # feature_level=opensmile.FeatureLevel.Functionals,
+    # )
+
+    # eGeMAPS=smile.process_signal(y,sr)
+    # eGeMAPS = np.median(eGeMAPS,axis=0)
+    # result=np.hstack((result, eGeMAPS))
 
     print(fileName)
     return result
@@ -130,7 +132,18 @@ def saveeConditions(x):
         return 'neutral'
 
 
-saveeX,saveeY=loadData('data/AudioData/*',saveeConditions)
+if (os.path.isfile('saveeX.csv')):
+    df = pd.read_csv('saveeX.csv', delimiter=',')
+    saveeX = [np.array(x) for x in df.values]
+    df = pd.read_csv('saveeY.csv', delimiter=',')
+    saveeY = [np.array(x) for x in df.values]
+else:
+    saveeX,saveeY=loadData('data/AudioData/*',saveeConditions)
+    df = pd.DataFrame(saveeX)
+    df.to_csv('saveeX.csv')
+    df = pd.DataFrame(saveeY)
+    df.to_csv('saveeY.csv')
+
 
 def urduConditions(name):
     x=name.split('_')[2] 
@@ -144,7 +157,17 @@ def urduConditions(name):
         return 'sadness'
 
 
-urduX,urduY=loadData('data/Urdu/*',urduConditions)
+if (os.path.isfile('urduX.csv')):
+    df = pd.read_csv('urduX.csv', delimiter=',')
+    urduX = [np.array(x) for x in df.values]
+    df = pd.read_csv('urduY.csv', delimiter=',')
+    urduY = [np.array(x) for x in df.values]
+else:
+    urduX,urduY=loadData('data/Urdu/*',urduConditions)
+    df = pd.DataFrame(urduX)
+    df.to_csv('urduX.csv')
+    df = pd.DataFrame(urduY)
+    df.to_csv('urduY.csv')
 
 
 def emodbConditions(x):
@@ -163,7 +186,18 @@ def emodbConditions(x):
     elif(x[5]=='N'):
         return 'neutral'
 
-# emodbX,emodbY=loadData('data/emo-db/*',emodbConditions)
+if (os.path.isfile('emodbX.csv')):
+    df = pd.read_csv('emodbX.csv', delimiter=',')
+    emodbX = [np.array(x) for x in df.values]
+    df = pd.read_csv('emodbY.csv', delimiter=',')
+    emodbY = [np.array(x) for x in df.values]
+else:
+    emodbX,emodbY=loadData('data/emo-db/*',emodbConditions)
+    df = pd.DataFrame(emodbX)
+    df.to_csv('emodbX.csv')
+    df = pd.DataFrame(emodbY)
+    df.to_csv('emodbY.csv')
+
 
 def emovoConditions(name):
     x=name.split('-')[0] 
@@ -182,12 +216,23 @@ def emovoConditions(name):
     elif(x=="dis"): 
         return 'disgust'
 
-# emovoX,emovoY=loadData('data/emovo/EMOVO/*',emovoConditions)
+if (os.path.isfile('emovoX.csv')):
+    df = pd.read_csv('emovoX.csv', delimiter=',')
+    emovoX = [np.array(x) for x in df.values]
+    df = pd.read_csv('emovoY.csv', delimiter=',')
+    emovoY = [np.array(x) for x in df.values]
+else:
+    emovoX,emovoY=loadData('data/emovo/EMOVO/*',emovoConditions)
+    df = pd.DataFrame(emovoX)
+    df.to_csv('emovoX.csv')
+    df = pd.DataFrame(emovoY)
+    df.to_csv('emovoY.csv')
+
 
 def cal_accuracy(y_test, y_pred):
       
-    print("Confusion Matrix: ",
-        confusion_matrix(y_test, y_pred))
+    # print("Confusion Matrix: ",
+        # confusion_matrix(y_test, y_pred))
       
     print ("Accuracy : ",
     accuracy_score(y_test,y_pred)*100)
@@ -216,9 +261,6 @@ def decisionTree(x_train,x_test,y_train,y_test):
     return clf_return 
 
 def random_forest(x_train, x_test, y_train, y_test):
-    # selector= SelectKBest(mutual_info_classif, k=38)
-    # x_train= selector.fit_transform(x_train,y_train)
-    # x_test=selector.transform(x_test)
 
     model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=100)
     clf_return = model
@@ -260,6 +302,7 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
 
     length = len(x_train_pre)   
 
+    length = len(x_train_pre)   
     y_train=[]
     x_train=[]
     for i in range(length):
@@ -267,46 +310,61 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
             y_train.append(y_train_pre[i])
             x_train.append(x_train_pre[i])
 
+    # selector= SelectKBest(mutual_info_classif, k=68)
+    # x_train= selector.fit_transform(x_train,y_train)
+    # x_test=selector.transform(x_test)
     
-    sm = SMOTE(k_neighbors=3,random_state=42)
-
-    # x_train, y_train = sm.fit_resample(x_train, y_train)
-    # x_train=x_train-np.mean(x_train)
-    # scaler = MinMaxScaler()
-    # scaler.fit(x_train)
-    # x_train = scaler.transform(x_train)
 
     dt_clf=decisionTree(x_train,x_test,y_train,y_test)
     rf_clf=random_forest(x_train,x_test,y_train,y_test)
     ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,make_pipeline(StandardScaler(), SVC(gamma='auto')))
 
 
-# X_train, X_test, y_train, y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
+urdu_x_train, urdu_x_test, urdu_y_train, urdu_y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
+savee_x_train, savee_x_test, savee_y_train, savee_y_test = train_test_split(saveeX, saveeY, test_size=0.33, random_state=42)
+emodb_x_train, emodb_x_test, emodb_y_train, emodb_y_test = train_test_split(emodbX, emodbY, test_size=0.33, random_state=42)
+emovo_x_train, emovo_x_test, emovo_y_train, emovo_y_test = train_test_split(emovoX, emovoY, test_size=0.33, random_state=42)
+
+print("In Corpus Testing")
+
+print("train - Savee      test-Savee")
+classify(savee_x_train,savee_x_test,savee_y_train,savee_y_test)
+print("train - urdu      test-urdu")
+classify(urdu_x_train,urdu_x_test,urdu_y_train,urdu_y_test)
+print("train - emodb      test-emodb")
+classify(emodb_x_train,emodb_x_test,emodb_y_train,emodb_y_test)
+print("train - emovo      test-emovo")
+classify(emovo_x_train,emovo_x_test,emovo_y_train,emovo_y_test)
+
+
+print("Cross Corpus Testing")
+
+
 print("train - Urdu      test-Savee")
-classify(urduX,saveeX,urduY,saveeY)
+classify(urduX,savee_x_test,urduY,savee_y_test)
 print("train - Urdu      test-emodb")
-# classify(urduX,emodbX,urduY,emodbY)
+classify(urduX,emodb_x_test,urduY,emodb_y_test)
 print("train - Urdu      test-emovo")
-# classify(urduX,emovoX,urduY,emovoY)
+classify(urduX,emovo_x_test,urduY,emovo_y_test)
 
 
 print("train - savee      test-urdu")
-classify(saveeX,urduX,saveeY,urduY)
-print("train - savee      test-emodb")
-# classify(saveeX,emodbX,saveeY,emodbY)
-print("train - savee      test-emovo")
-# classify(saveeX,emovoX,saveeY,emovoY)
+classify(saveeX,urdu_x_test,saveeY,urdu_y_test)
+# print("train - savee      test-emodb")
+# classify(saveeX,emodb_x_test,saveeY,emodb_y_test)
+# print("train - savee      test-emovo")
+# classify(saveeX,emovo_x_test,saveeY,emovo_y_test)
 
 print("train - emodb      test-urdu")
-# classify(emodbX,urduX,emodbY,urduY)
-print("train - emodb      test-savee")
-# classify(emodbX,saveeX,emodbY,saveeY)
-print("train - emodb      test-emovo")
-# classify(emodbX,emovoX,emodbY,emovoY)
+classify(emodbX,urdu_x_test,emodbY,urdu_y_test)
+# print("train - emodb      test-savee")
+# classify(emodbX,savee_x_test,emodbY,savee_y_test)
+# print("train - emodb      test-emovo")
+# classify(emodbX,emovo_x_test,emodbY,emovo_y_test)
 
 print("train - emovo      test-urdu")
-# classify(emovoX,urduX,emovoY,urduY)
-print("train - emovo      test-savee")
-# classify(emovoX,saveeX,emovoY,saveeY)
-print("train - emovo      test-emodb")
-# classify(emovoX,emodbX,emovoY,emodbY)
+classify(emovoX,urdu_x_test,emovoY,urdu_y_test)
+# print("train - emovo      test-savee")
+# classify(emovoX,savee_x_test,emovoY,savee_y_test)
+# print("train - emovo      test-emodb")
+# classify(emovoX,emodb_x_test,emovoY,emodb_y_test)
