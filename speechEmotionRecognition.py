@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 import os,glob
 import numpy as np 
 import librosa
@@ -55,11 +56,11 @@ def extractFeatures(fileName):
     result=np.hstack((result, rms))
 
     # extracting fundamental frequency
-    # f0=librosa.pyin(y=y, fmin=librosa.note_to_hz('c2'), fmax=librosa.note_to_hz('c7'))
-    # f0=np.array(f0)
+    f0=librosa.pyin(y=y, fmin=librosa.note_to_hz('c2'), fmax=librosa.note_to_hz('c7'))
+    f0=np.array(f0)
 
-    # f0 = np.median(f0.T,axis=0)
-    # result=np.hstack((result, f0))
+    f0 = np.median(f0.T,axis=0)
+    result=np.hstack((result, f0))
 
 
     # extracting contrast features
@@ -72,14 +73,14 @@ def extractFeatures(fileName):
     result=np.hstack((result, zeroCrossingRate))
 
     # extra eGeMAPS features
-    # smile = opensmile.Smile(
-        # feature_set=opensmile.FeatureSet.eGeMAPSv02,
-        # feature_level=opensmile.FeatureLevel.Functionals,
-    # )
+    smile = opensmile.Smile(
+        feature_set=opensmile.FeatureSet.eGeMAPSv02,
+        feature_level=opensmile.FeatureLevel.Functionals,
+    )
 
-    # eGeMAPS=smile.process_signal(y,sr)
-    # eGeMAPS = np.median(eGeMAPS,axis=0)
-    # result=np.hstack((result, eGeMAPS))
+    eGeMAPS=smile.process_signal(y,sr)
+    eGeMAPS = np.median(eGeMAPS,axis=0)
+    result=np.hstack((result, eGeMAPS))
 
     print(fileName)
     return result
@@ -106,7 +107,7 @@ def loadData(folderName, emotionsConditions):
     sm = SMOTE(k_neighbors=3,random_state=42)
     x, y = sm.fit_resample(x, y)
     x=x-np.mean(x)
-    scaler = MinMaxScaler()
+    scaler = StandardScaler()
     scaler.fit(x)
     x = scaler.transform(x)
     return x,y
@@ -241,6 +242,125 @@ def cal_accuracy(y_test, y_pred):
     classification_report(y_test, y_pred))
 
 
+class SVM():
+    """
+        Simple implementation of a Support Vector Machine using the
+        Sequential Minimal Optimization (SMO) algorithm for training.
+    """
+
+    def __init__(self, max_iter=10000, kernel_type='linear', C=1.0, epsilon=0.001):
+        self.kernels = {
+            'linear': self.kernel_linear,
+            'quadratic': self.kernel_quadratic
+        }
+        self.max_iter = max_iter
+        self.kernel_type = kernel_type
+        self.C = C
+        self.epsilon = epsilon
+
+    def fit(self, X, y):
+        # Initialization
+        n, d = X.shape[0], X.shape[1]
+        alpha = np.zeros((n))
+        kernel = self.kernels[self.kernel_type]
+        count = 0
+        while True:
+            count += 1
+            alpha_prev = np.copy(alpha)
+            for j in range(0, n):
+                i = self.get_rnd_int(0, n-1, j)  # Get random int i~=j
+                x_i, x_j, y_i, y_j = X[i, :], X[j, :], y[i], y[j]
+                k_ij = kernel(x_i, x_i) + kernel(x_j, x_j) - \
+                    2 * kernel(x_i, x_j)
+                if k_ij == 0:
+                    continue
+                alpha_prime_j, alpha_prime_i = alpha[j], alpha[i]
+                (L, H) = self.compute_L_H(
+                    self.C, alpha_prime_j, alpha_prime_i, y_j, y_i)
+
+                # Compute model parameters
+                self.w = self.calc_w(alpha, y, X)
+                self.b = self.calc_b(X, y, self.w)
+
+                # Compute E_i, E_j
+                E_i = self.E(x_i, y_i, self.w, self.b)
+                E_j = self.E(x_j, y_j, self.w, self.b)
+
+                # Set new alpha values
+                alpha[j] = alpha_prime_j + float(y_j * (E_i - E_j))/k_ij
+                alpha[j] = max(alpha[j], L)
+                alpha[j] = min(alpha[j], H)
+
+                alpha[i] = alpha_prime_i + y_i*y_j * (alpha_prime_j - alpha[j])
+
+            # Check convergence
+            diff = np.linalg.norm(alpha - alpha_prev)
+            if diff < self.epsilon:
+                break
+
+            if count >= self.max_iter:
+                print("Iteration number exceeded the max of %d iterations" %
+                      (self.max_iter))
+                return
+        # Compute final model parameters
+        self.b = self.calc_b(X, y, self.w)
+        if self.kernel_type == 'linear':
+            self.w = self.calc_w(alpha, y, X)
+        # Get support vectors
+        alpha_idx = np.where(alpha > 0)[0]
+        support_vectors = X[alpha_idx, :]
+        return support_vectors, count
+
+    def predict(self, X):
+        return self.h(X, self.w, self.b)
+
+    def calc_b(self, X, y, w):
+        b_tmp = y - np.dot(w.T, X.T)
+        return np.mean(b_tmp)
+
+    def calc_w(self, alpha, y, X):
+        return np.dot(X.T, np.multiply(alpha, y))
+    # Prediction
+
+    def h(self, X, w, b):
+        return np.sign(np.dot(w.T, X.T) + b).astype(int)
+    # Prediction error
+
+    def E(self, x_k, y_k, w, b):
+        return self.h(x_k, w, b) - y_k
+
+    def compute_L_H(self, C, alpha_prime_j, alpha_prime_i, y_j, y_i):
+        if(y_i != y_j):
+            return (max(0, alpha_prime_j - alpha_prime_i), min(C, C - alpha_prime_i + alpha_prime_j))
+        else:
+            return (max(0, alpha_prime_i + alpha_prime_j - C), min(C, alpha_prime_i + alpha_prime_j))
+
+    def get_rnd_int(self, a, b, z):
+        i = z
+        cnt = 0
+        while i == z and cnt < 1000:
+            i = rnd.randint(a, b)
+            cnt = cnt+1
+        return i
+    # Define kernels
+
+    def kernel_linear(self, x1, x2):
+        return np.dot(x1, x2.T)
+
+    def kernel_quadratic(self, x1, x2):
+        return (np.dot(x1, x2.T) ** 2)
+
+
+def SMO(x_train, x_test, y_train, y_test):
+    svm_model_linear = SVC(gamma='auto')
+    clf_return = svm_model_linear
+    svm_model_linear.fit(x_train, y_train) 
+    svm_predictions = svm_model_linear.predict(x_test) 
+    print("Results Using Support Vector Machine: ")
+    cal_accuracy(y_test, svm_predictions)
+    return clf_return
+
+
 def decisionTree(x_train,x_test,y_train,y_test):
     
     # selector= SelectKBest(mutual_info_classif, k=28)
@@ -317,7 +437,8 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
 
     dt_clf=decisionTree(x_train,x_test,y_train,y_test)
     rf_clf=random_forest(x_train,x_test,y_train,y_test)
-    ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,make_pipeline(StandardScaler(), SVC(gamma='auto')))
+    smo_clf=SMO(x_train,x_test,y_train,y_test)
+    ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,smo_clf)  
 
 
 urdu_x_train, urdu_x_test, urdu_y_train, urdu_y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
