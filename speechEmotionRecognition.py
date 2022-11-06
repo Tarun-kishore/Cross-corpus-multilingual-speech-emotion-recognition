@@ -135,8 +135,8 @@ def saveeConditions(x):
 if (os.path.isfile('saveeX.csv')):
     df = pd.read_csv('saveeX.csv', delimiter=',')
     saveeX = [np.array(x) for x in df.values]
-    df = pd.read_csv('saveeY.csv', delimiter=',')
-    saveeY = [np.array(x) for x in df.values]
+    df = pd.read_csv('saveeY.csv')
+    saveeY = [x[1] for x in df.values]
 else:
     saveeX,saveeY=loadData('data/AudioData/*',saveeConditions)
     df = pd.DataFrame(saveeX)
@@ -161,7 +161,7 @@ if (os.path.isfile('urduX.csv')):
     df = pd.read_csv('urduX.csv', delimiter=',')
     urduX = [np.array(x) for x in df.values]
     df = pd.read_csv('urduY.csv', delimiter=',')
-    urduY = [np.array(x) for x in df.values]
+    urduY = [x[1] for x in df.values]
 else:
     urduX,urduY=loadData('data/Urdu/*',urduConditions)
     df = pd.DataFrame(urduX)
@@ -190,7 +190,7 @@ if (os.path.isfile('emodbX.csv')):
     df = pd.read_csv('emodbX.csv', delimiter=',')
     emodbX = [np.array(x) for x in df.values]
     df = pd.read_csv('emodbY.csv', delimiter=',')
-    emodbY = [np.array(x) for x in df.values]
+    emodbY = [x[1] for x in df.values]
 else:
     emodbX,emodbY=loadData('data/emo-db/*',emodbConditions)
     df = pd.DataFrame(emodbX)
@@ -220,7 +220,7 @@ if (os.path.isfile('emovoX.csv')):
     df = pd.read_csv('emovoX.csv', delimiter=',')
     emovoX = [np.array(x) for x in df.values]
     df = pd.read_csv('emovoY.csv', delimiter=',')
-    emovoY = [np.array(x) for x in df.values]
+    emovoY = [x[1] for x in df.values]
 else:
     emovoX,emovoY=loadData('data/emovo/EMOVO/*',emovoConditions)
     df = pd.DataFrame(emovoX)
