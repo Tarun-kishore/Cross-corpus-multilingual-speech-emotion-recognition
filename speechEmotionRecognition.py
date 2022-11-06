@@ -1,22 +1,20 @@
 import os,glob
 import numpy as np 
+import pandas as pd
+import opensmile
 import librosa
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
-from sklearn.pipeline import make_pipeline
-from sklearn.metrics import classification_report
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score,classification_report
 from sklearn.feature_selection import SelectKBest,mutual_info_classif
 from imblearn.over_sampling import SMOTE
-from sklearn.preprocessing import MinMaxScaler,StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier,VotingClassifier
 from sklearn.svm import SVC
-import opensmile
-import pandas as pd
 
 
+#extracting features from audio files
 def extractFeatures(fileName):
     y, sr = librosa.load(fileName)
 
@@ -78,34 +76,43 @@ def extractFeatures(fileName):
     return result
 
 
+# load all audio files from the dataset folder
 def loadData(folderName, emotionsConditions):
     x,y = [] , []
-    num=150
     for folder in glob.glob(folderName):
         for file in glob.glob(folder+'/*.wav'):
-            # num=num-1
-            if(num<=0):
-                break
             fileName = os.path.basename(file)
             emotion = emotionsConditions(fileName)
             feature = extractFeatures(file)
             x.append(feature)
             y.append(emotion)
 
-
+    # removing all nan values from features and replacing it
+    # with the mean of remaning values of the features
     preprocessor = SimpleImputer(missing_values=np.nan, strategy='mean')
     preprocessor.fit(x)
     x = preprocessor.transform(x)
+
+    # Using SMOTE to oversample data to remove data imbalance
     sm = SMOTE(k_neighbors=3,random_state=42)
     x, y = sm.fit_resample(x, y)
+
+    # Shifting data to have mean value 0
     x=x-np.mean(x)
+
+    # Normalising data : converting data value to value from 0 to 1
     scaler = StandardScaler()
     scaler.fit(x)
     x = scaler.transform(x)
+
+
     return x,y
 
 
 
+# function containing conditions to find emotion using filename in savee dataset
+# arguement : filename
+# returns : emotion of audio in filename
 
 def saveeConditions(x):
     if(x[0]=='s'):
@@ -124,6 +131,8 @@ def saveeConditions(x):
     elif(x[0]=='n'): 
         return 'neutral'
 
+# if the corresponding csv exists then no need ot extract features again, obtain features from the csv file
+# if csv file does not exist then extract features and export features and corresponding emotions to csv file
 
 if (os.path.isfile('saveeX.csv')):
     df = pd.read_csv('saveeX.csv', delimiter=',')
@@ -138,6 +147,9 @@ else:
     df.to_csv('saveeY.csv')
 
 
+# function containing conditions to find emotion using filename in urdu dataset
+# arguement : filename
+# returns : emotion of audio in filename
 def urduConditions(name):
     x=name.split('_')[2] 
     if(x[0]=='A'): 
@@ -150,6 +162,8 @@ def urduConditions(name):
         return 'sadness'
 
 
+# if the corresponding csv exists then no need ot extract features again, obtain features from the csv file
+# if csv file does not exist then extract features and export features and corresponding emotions to csv file
 if (os.path.isfile('urduX.csv')):
     df = pd.read_csv('urduX.csv', delimiter=',')
     urduX = [np.array(x) for x in df.values]
@@ -162,6 +176,9 @@ else:
     df = pd.DataFrame(urduY)
     df.to_csv('urduY.csv')
 
+# function containing conditions to find emotion using filename in emodb dataset
+# arguement : filename
+# returns : emotion of audio in filename
 
 def emodbConditions(x):
     if(x[5]=='A' or x[5]=='W'):
@@ -179,6 +196,8 @@ def emodbConditions(x):
     elif(x[5]=='N'):
         return 'neutral'
 
+# if the corresponding csv exists then no need ot extract features again, obtain features from the csv file
+# if csv file does not exist then extract features and export features and corresponding emotions to csv file
 if (os.path.isfile('emodbX.csv')):
     df = pd.read_csv('emodbX.csv', delimiter=',')
     emodbX = [np.array(x) for x in df.values]
@@ -191,6 +210,9 @@ else:
     df = pd.DataFrame(emodbY)
     df.to_csv('emodbY.csv')
 
+# function containing conditions to find emotion using filename in emovo dataset
+# arguement : filename
+# returns : emotion of audio in filename
 
 def emovoConditions(name):
     x=name.split('-')[0] 
@@ -209,6 +231,8 @@ def emovoConditions(name):
     elif(x=="dis"): 
         return 'disgust'
 
+# if the corresponding csv exists then no need ot extract features again, obtain features from the csv file
+# if csv file does not exist then extract features and export features and corresponding emotions to csv file
 if (os.path.isfile('emovoX.csv')):
     df = pd.read_csv('emovoX.csv', delimiter=',')
     emovoX = [np.array(x) for x in df.values]
@@ -222,9 +246,11 @@ else:
     df.to_csv('emovoY.csv')
 
 
+# calculate accuracy using test results and predicted results of the classifier
+# arguements: test dataset results and predicted results 
+# returns: void ( prints the accuracy and classification report)
+
 def cal_accuracy(y_test, y_pred):
-      
-      
     print ("Accuracy : ",
     accuracy_score(y_test,y_pred)*100)
       
@@ -232,6 +258,7 @@ def cal_accuracy(y_test, y_pred):
     classification_report(y_test, y_pred))
 
 
+# SMO classifier
 def SMO(x_train, x_test, y_train, y_test):
     svm_model_linear = SVC(gamma='auto')
     clf_return = svm_model_linear
@@ -242,6 +269,7 @@ def SMO(x_train, x_test, y_train, y_test):
     return clf_return
 
 
+# decision tree classifier
 def decisionTree(x_train,x_test,y_train,y_test):
     
     clf = DecisionTreeClassifier(
@@ -253,11 +281,12 @@ def decisionTree(x_train,x_test,y_train,y_test):
       
     y_pred = clf.predict(x_test)
     
-    print("Results Using J48:")
+    print("Results Using decision tree:")
     cal_accuracy(y_test, y_pred)
 
     return clf_return 
 
+# random forest classifier
 def random_forest(x_train, x_test, y_train, y_test):
 
     model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=100)
@@ -270,6 +299,7 @@ def random_forest(x_train, x_test, y_train, y_test):
 
     return model
 
+# ensemble classifier using majority voting
 def ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,smo_clf):
     clf = VotingClassifier(
         estimators=[('dt', dt_clf), ('smo', smo_clf), ('rf', rf_clf)],
@@ -287,10 +317,12 @@ def ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,smo_clf):
     return clf_return 
 
 
+# function takes training and testing data and pass it to different classifiers
 def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
 
     length = len(x_test_pre)   
 
+    # removing unobserved data from training and testing dataset
     y_test=[]
     x_test=[]
     for i in range(length):
@@ -298,7 +330,6 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
             y_test.append(y_test_pre[i])
             x_test.append(x_test_pre[i])
 
-    length = len(x_train_pre)   
 
     length = len(x_train_pre)   
     y_train=[]
@@ -308,9 +339,10 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
             y_train.append(y_train_pre[i])
             x_train.append(x_train_pre[i])
 
-    # selector= SelectKBest(mutual_info_classif, k=35)
-    # x_train= selector.fit_transform(x_train,y_train)
-    # x_test=selector.transform(x_test)
+    # feature selection using k best selection method
+    selector= SelectKBest(mutual_info_classif, k=35)
+    x_train= selector.fit_transform(x_train,y_train)
+    x_test=selector.transform(x_test)
     
 
     dt_clf=decisionTree(x_train,x_test,y_train,y_test)
@@ -319,51 +351,46 @@ def classify(x_train_pre,x_test_pre,y_train_pre,y_test_pre):
     ensemble(x_train,x_test,y_train,y_test,dt_clf,rf_clf,smo_clf)  
 
 
+# Splitting datasets into training and testing dataset
 urdu_x_train, urdu_x_test, urdu_y_train, urdu_y_test = train_test_split(urduX, urduY, test_size=0.33, random_state=42)
 savee_x_train, savee_x_test, savee_y_train, savee_y_test = train_test_split(saveeX, saveeY, test_size=0.25, random_state=42)
 emodb_x_train, emodb_x_test, emodb_y_train, emodb_y_test = train_test_split(emodbX, emodbY, test_size=0.25, random_state=42)
 emovo_x_train, emovo_x_test, emovo_y_train, emovo_y_test = train_test_split(emovoX, emovoY, test_size=0.25, random_state=42)
 
+
+# In corpus tesing : training and testing on same dataset
 print("In Corpus Testing")
 
 print("train - Savee      test-Savee")
 classify(savee_x_train,savee_x_test,savee_y_train,savee_y_test)
+
 print("train - urdu      test-urdu")
 classify(urdu_x_train,urdu_x_test,urdu_y_train,urdu_y_test)
+
 print("train - emodb      test-emodb")
 classify(emodb_x_train,emodb_x_test,emodb_y_train,emodb_y_test)
+
 print("train - emovo      test-emovo")
 classify(emovo_x_train,emovo_x_test,emovo_y_train,emovo_y_test)
 
 
+# Cross corpus testing : training and testing on different dataset
 print("Cross Corpus Testing")
-
 
 print("train - Urdu      test-Savee")
 classify(urduX,savee_x_test,urduY,savee_y_test)
+
 print("train - Urdu      test-emodb")
 classify(urduX,emodb_x_test,urduY,emodb_y_test)
+
 print("train - Urdu      test-emovo")
 classify(urduX,emovo_x_test,urduY,emovo_y_test)
 
-
 print("train - savee      test-urdu")
 classify(saveeX,urdu_x_test,saveeY,urdu_y_test)
-# print("train - savee      test-emodb")
-# classify(saveeX,emodb_x_test,saveeY,emodb_y_test)
-# print("train - savee      test-emovo")
-# classify(saveeX,emovo_x_test,saveeY,emovo_y_test)
 
 print("train - emodb      test-urdu")
 classify(emodbX,urdu_x_test,emodbY,urdu_y_test)
-# print("train - emodb      test-savee")
-# classify(emodbX,savee_x_test,emodbY,savee_y_test)
-# print("train - emodb      test-emovo")
-# classify(emodbX,emovo_x_test,emodbY,emovo_y_test)
 
 print("train - emovo      test-urdu")
 classify(emovoX,urdu_x_test,emovoY,urdu_y_test)
-# print("train - emovo      test-savee")
-# classify(emovoX,savee_x_test,emovoY,savee_y_test)
-# print("train - emovo      test-emodb")
-# classify(emovoX,emodb_x_test,emovoY,emodb_y_test)
